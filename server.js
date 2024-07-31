@@ -23,24 +23,37 @@ app.use(
   })
 );
 
-io.on('connection', (socket) => {
-  console.log(socket.id + ' user connected');
-  players[socket.id] = { x: 0, y: 0 };
+io.on("connection", function (socket) {
+  socket.on("newPlayer", function (newPlayer) {
+    console.log("New player joined with state:", newPlayer);
+    const [name, key] = newPlayer.name.split(":");
+    players[key] = newPlayer;
 
-  socket.emit('init', { id: socket.id, players });
-  socket.broadcast.emit('newPlayer', { id: socket.id, x: 0, y: 0 });
+    socket.emit("currentPlayers", players);
+    socket.broadcast.emit("newPlayer", newPlayer);
+  });
 
-  socket.on('disconnect', () => {
-    console.log('Player disconnected:', socket.id);
-    delete players[socket.id];
-    socket.broadcast.emit('playerDisconnected', { id: socket.id });
-});   
+  socket.on("playerDisconnected", function (key) {
+    delete players[key];
+    console.log("Serve > player destroyed: ", key);
 
-    socket.on('move', (data) => {
-        players[socket.id].x = data.x;
-        players[socket.id].y = data.y;
-        socket.broadcast.emit('playerMoved', { id: socket.id, x: data.x, y: data.y });
-    });
+    socket.broadcast.emit("playerDisconnected", key);
+  });
+
+  socket.on("playerIsMoving", function (position_data) {
+    console.log("Server> playerMoved> Player moved to ", position_data);
+    const key = position_data?.key;
+    if (players[key] == undefined) return;
+    players[key].x = position_data.x;
+    players[key].y = position_data.y;
+    players[key].rotation = position_data.rotation;
+
+    socket.broadcast.emit("playerMoved", players[key]);
+  });
+});
+
+io.on("disconnect", function () {
+  
 });
 
 server.listen(2020, () => {
