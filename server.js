@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type"],
     credentials: true
   }
@@ -15,45 +15,23 @@ const io = socketIo(server, {
 
 const players = {};
 
-app.use(
-  cors({
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type"],
-    credentials: true,
-  })
-);
-
 io.on("connection", function (socket) {
-  socket.on("newPlayer", function (newPlayer) {
-    console.log("New player joined with state:", newPlayer);
-    const [name, key] = newPlayer.name.split(":");
-    players[key] = newPlayer;
-
-    socket.emit("currentPlayers", players);
-    socket.broadcast.emit("newPlayer", newPlayer);
+  console.log(socket.id +" user connected");
+  socket.emit("current_players", { players });
+  socket.on("add_player", function (data) {
+    players[socket.id] = data;
+    socket.broadcast.emit("new_player", { name: socket.id, data });
   });
-
-  socket.on("playerDisconnected", function (key) {
-    delete players[key];
-    console.log("Serve > player destroyed: ", key);
-
-    socket.broadcast.emit("playerDisconnected", key);
+  socket.on("disconnect", function () {
+    console.log(socket.io +"user disconnected");
+    delete players[socket.id];
+    io.emit("playerDisconnected", { name: socket.id});
   });
-
-  socket.on("playerIsMoving", function (position_data) {
-    console.log("Server> playerMoved> Player moved to ", position_data);
-    const key = position_data?.key;
-    if (players[key] == undefined) return;
-    players[key].x = position_data.x;
-    players[key].y = position_data.y;
-    players[key].rotation = position_data.rotation;
-
-    socket.broadcast.emit("playerMoved", players[key]);
+  socket.on("playerIsMoving", function (data) {
+    players[socket.id] = data;
+    console.log(data);
+    socket.broadcast.emit("playerMoved", { name: socket.id, data });
   });
-});
-
-io.on("disconnect", function () {
-  
 });
 
 server.listen(2020, () => {
